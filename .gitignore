@@ -1,0 +1,16 @@
+# OS / editor junk
+.DS_Store
+Thumbs.db
+
+# vim / nano / temp backups
+*~
+*.swp
+*.tmp
+
+# packaged releases
+*.zip
+
+# node / tooling (just in case)
+node_modules/
+dist/
+build/
