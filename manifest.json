@@ -28,6 +28,9 @@
     "gecko": {
       "id": "save-image-to@metasamsara"
     }
+  },
+  "data_collection_permissions": {
+    "required": false
   }
 }
 
