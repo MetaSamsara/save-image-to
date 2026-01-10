@@ -1,0 +1,411 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Save image to... — Options</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 24px; max-width: 1100px; }
+    .row { display: flex; gap: 12px; align-items: end; margin: 10px 0; flex-wrap: wrap; }
+    input[type="text"] { padding: 6px 8px; width: 280px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f6f6f6; }
+    .muted { color: #555; }
+    button { padding: 6px 10px; cursor: pointer; }
+    code { background: #f2f2f2; padding: 2px 5px; border-radius: 4px; }
+    h2 { margin-top: 28px; }
+
+    .namingWrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 10px;
+      align-items: start;
+    }
+    @media (max-width: 900px) { .namingWrap { grid-template-columns: 1fr; } }
+
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 14px;
+      background: #fff;
+    }
+
+    ul.parts {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .part {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      background: #fafafa;
+    }
+
+    .part.dragging { opacity: 0.6; }
+
+    .handle {
+      cursor: grab;
+      user-select: none;
+      font-size: 18px;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .partMain {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .partActions { display: flex; gap: 6px; align-items: center; }
+
+    .smallBtn { padding: 4px 8px; font-size: 12px; }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } }
+
+    select {
+      padding: 6px 8px;
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .previewBox {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      padding: 10px 12px;
+      background: #0b0b0b;
+      color: #e8e8e8;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+
+    /* Per-folder override */
+    .folderOverride {
+      margin-top: 10px;
+      border: 1px dashed #bbb;
+      border-radius: 12px;
+      padding: 10px;
+      background: #fcfcfc;
+    }
+
+    .inlineRow {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .tinyInput {
+      padding: 6px 8px;
+      width: 140px;
+    }
+
+    .tinyPreview {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #0b0b0b;
+      color: #e8e8e8;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      overflow-x: auto;
+    }
+
+    /* ---- Tabs ---- */
+    .tabsHeader {
+      display: flex;
+      gap: 10px;
+      margin: 14px 0 18px 0;
+      flex-wrap: wrap;
+    }
+
+    .tabBtn {
+      border: 1px solid #ddd;
+      background: #fff;
+      padding: 8px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .tabBtn[aria-selected="true"] {
+      background: #0b0b0b;
+      color: #fff;
+      border-color: #0b0b0b;
+    }
+
+    .tabPanel { display: none; }
+    .tabPanel.active { display: block; }
+
+    /* About page */
+    .aboutTitle {
+      font-size: 18px;
+      font-weight: 800;
+      margin: 0 0 6px 0;
+    }
+    .aboutSubtitle {
+      margin: 0 0 12px 0;
+      color: #555;
+    }
+    .aboutGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+      margin-top: 10px;
+    }
+    @media (max-width: 900px) { .aboutGrid { grid-template-columns: 1fr; } }
+
+    .aboutList {
+      margin: 0;
+      padding-left: 18px;
+      color: #333;
+      line-height: 1.55;
+    }
+
+    .tagRow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #ddd;
+      background: #fafafa;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #333;
+    }
+
+    .ghLink {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      text-decoration: none;
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+    .ghLink:hover { background: #f0f0f0; }
+    .ghIcon { width: 16px; height: 16px; display: inline-block; vertical-align: middle; }
+
+    a { color: inherit; }
+
+    /* Footer reset link */
+    .footerBar {
+      margin-top: 14px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .footerLink {
+      font-size: 12px;
+      color: #777;
+      text-decoration: underline;
+      cursor: pointer;
+      user-select: none;
+    }
+    .footerLink:hover { color: #222; }
+  </style>
+</head>
+<body>
+  <h1>Save image to...</h1>
+
+  <div class="tabsHeader" role="tablist" aria-label="Options tabs">
+    <button class="tabBtn" id="tab-settings" role="tab" aria-selected="true" aria-controls="panel-settings" type="button">
+      Settings
+    </button>
+    <button class="tabBtn" id="tab-about" role="tab" aria-selected="false" aria-controls="panel-about" type="button">
+      About
+    </button>
+  </div>
+
+  <!-- ========================= -->
+  <!-- SETTINGS TAB (DEFAULT)    -->
+  <!-- ========================= -->
+  <div id="panel-settings" class="tabPanel active" role="tabpanel" aria-labelledby="tab-settings">
+
+    <p class="muted">
+      Firefox extensions can only save into subfolders under your default Downloads directory.
+      Use paths like <code>saved_images</code> or <code>Images/Art</code>.
+    </p>
+
+    <h2>Global file naming</h2>
+
+    <div class="namingWrap">
+      <div class="card">
+        <h3 style="margin-top:0;">Parts order (drag & drop)</h3>
+        <p class="muted" style="margin-top:6px;">
+          Drag parts to reorder. Use checkboxes to enable/disable.
+        </p>
+
+        <ul id="partsList" class="parts"></ul>
+
+        <div style="margin-top:12px;">
+          <button id="resetNamingBtn" type="button">Reset global naming defaults</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Extra settings</h3>
+
+        <div class="grid2">
+          <div>
+            <div class="muted">Separator between parts</div>
+            <input id="separatorInput" type="text" value="_" />
+          </div>
+          <div>
+            <div class="muted">Date format</div>
+            <select id="dateFormatSelect">
+              <option value="DD-MM-YY">DD-MM-YY</option>
+              <option value="DD-MMM-YY">DD-MMM-YY</option>
+              <option value="DD-MMMM-YY">DD-MMMM-YY</option>
+              <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+              <option value="YYMMDD">YYMMDD</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid2" style="margin-top:10px;">
+          <div>
+            <div class="muted">Time format</div>
+            <select id="timeFormatSelect">
+              <option value="HH-mm-SS">HH-mm-SS</option>
+              <option value="HHMMSS">HHMMSS</option>
+            </select>
+          </div>
+          <div></div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <div class="muted">Preview</div>
+          <div id="previewBox" class="previewBox"></div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Add folder</h2>
+    <div class="row">
+      <div>
+        <div class="muted">Menu label</div>
+        <input id="newLabel" type="text" placeholder="e.g. Default" />
+      </div>
+      <div>
+        <div class="muted">Subfolder path (relative)</div>
+        <input id="newPath" type="text" placeholder="e.g. saved_images or Images/Art" />
+      </div>
+      <div style="align-self: end;">
+        <button id="addBtn">Add</button>
+      </div>
+    </div>
+
+    <h2>Folders</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th>Path</th>
+          <th>Per-folder naming</th>
+          <th style="width: 140px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="foldersTbody"></tbody>
+    </table>
+
+    <!-- Small footer reset hyperlink -->
+    <div class="footerBar">
+      <span id="resetAllLink" class="footerLink" title="Reset folders + naming back to defaults">
+        Reset to defaults…
+      </span>
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- ABOUT TAB                -->
+  <!-- ========================= -->
+  <div id="panel-about" class="tabPanel" role="tabpanel" aria-labelledby="tab-about">
+    <div class="card">
+      <div class="aboutTitle">About</div>
+      <p class="aboutSubtitle">
+        A tiny tool that turns “Save Image As…” into a fast workflow.
+      </p>
+
+      <div class="aboutGrid">
+        <div class="card" style="border-radius: 14px;">
+          <h3 style="margin-top:0;">Credits</h3>
+
+          <ul class="aboutList">
+            <li>
+              <strong>Created by:</strong>
+              <a class="ghLink" href="https://github.com/MetaSamsara" target="_blank" rel="noreferrer">
+                <svg class="ghIcon" viewBox="0 0 16 16" aria-hidden="true">
+                  <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+                </svg>
+                MetaSamsara
+              </a>
+            </li>
+
+            <li>
+              <strong>With the help of:</strong> ChatGPT 5.2 who wrote the entire code of this project.
+            </li>
+
+            <li>
+              <strong>Special credit to:</strong> my school teachers who said I wouldn’t be able to go online and copy-paste solutions when I grow up. The future is now, <em>old man</em>.
+            </li>
+          </ul>
+
+          <div class="tagRow">
+            <span class="tag">Libre</span>
+            <span class="tag">Open Source</span>
+            <span class="tag">Firefox (Manifest V2)</span>
+            <span class="tag">No telemetry</span>
+          </div>
+        </div>
+
+        <div class="card" style="border-radius: 14px;">
+          <h3 style="margin-top:0;">Notes & disclaimer</h3>
+          <ul class="aboutList">
+            <li>This extension is shared <strong>as-is</strong>.</li>
+            <li>It is meant to help you save images faster — not to break websites.</li>
+            <li><strong>You are responsible</strong> for what you download and how you use it.</li>
+            <li>Please respect creators, copyright, and site rules.</li>
+            <li>Settings are stored locally in your browser.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="muted" style="margin-bottom:6px;">What this extension can do:</div>
+        <div class="tagRow">
+          <span class="tag">Right-click → save to custom folders</span>
+          <span class="tag">Smart naming rules</span>
+          <span class="tag">Per-folder overrides</span>
+          <span class="tag">Works on tricky sites (IG / Pinterest)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
+

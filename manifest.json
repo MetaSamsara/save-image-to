@@ -1,0 +1,37 @@
+{
+  "manifest_version": 2,
+  "name": "Save image to...",
+  "version": "1.0.0",
+  "description": "Right-click an image and save it into custom folders with smart naming rules.",
+  "permissions": [
+    "contextMenus",
+    "downloads",
+    "storage",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png"
+  },
+  "applications": {
+    "gecko": {
+      "id": "save-image-to@metasamsara"
+    }
+  }
+}
+
