@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Save image to...",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Right-click an image and save it into custom folders with smart naming rules.",
   "permissions": [
     "contextMenus",
@@ -24,13 +24,13 @@
       "all_frames": true
     }
   ],
-  "applications": {
+  "browser_specific_settings": {
     "gecko": {
-      "id": "save-image-to@metasamsara"
+      "id": "save-image-to@metasamsara",
+      "data_collection_permissions": {
+        "required": false
+      }
     }
-  },
-  "data_collection_permissions": {
-    "required": false
   }
 }
 
