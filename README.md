@@ -9,7 +9,6 @@ Created by **MetaSamsara** with the help of **ChatGPT 5.2**.
 - Multiple custom folder entries
 - Smart naming: **site domain + date/time + original filename**
 - Optional per-folder naming overrides
-- Designed to work on tricky modern websites (dynamic/cached image URLs)
 
 ---
 
