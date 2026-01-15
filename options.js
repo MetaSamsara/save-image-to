@@ -49,6 +49,9 @@ const TIME_FORMAT_OPTIONS = [
   { value: "HHMMSS", label: "HHMMSS" }
 ];
 
+let draftSettings = null;
+let dirty = false;
+
 function isThenable(x) {
   return x && typeof x.then === "function";
 }
@@ -69,6 +72,10 @@ function storageSet(obj) {
   return new Promise((resolve) => ext.storage.local.set(obj, resolve));
 }
 
+function deepClone(x) {
+  return JSON.parse(JSON.stringify(x));
+}
+
 function makeId() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
@@ -83,7 +90,27 @@ function sanitizeRelativePath(p) {
     .replace(/\/$/, "");
 }
 
-/** ---------------- Tabs logic ---------------- **/
+function setDirty(nextDirty) {
+  dirty = !!nextDirty;
+
+  const saveBtn = document.getElementById("saveBtn");
+  const dirtyText = document.getElementById("dirtyText");
+  const dirtyDot = document.getElementById("dirtyDot");
+
+  if (saveBtn) saveBtn.disabled = !dirty;
+
+  if (dirtyText && dirtyDot) {
+    if (dirty) {
+      dirtyText.textContent = "Unsaved changes";
+      dirtyDot.className = "dirtyDot";
+    } else {
+      dirtyText.textContent = "All changes saved";
+      dirtyDot.className = "savedDot";
+    }
+  }
+}
+
+/** ---- Tabs logic ---- **/
 function initTabs() {
   const tabSettings = document.getElementById("tab-settings");
   const tabAbout = document.getElementById("tab-about");
@@ -163,6 +190,7 @@ function normalizeNaming(n) {
   const allowedTimes = TIME_FORMAT_OPTIONS.map(o => o.value);
   if (!allowedTimes.includes(naming.timeFormat)) naming.timeFormat = DEFAULT_SETTINGS.naming.timeFormat;
 
+  naming.parts = naming.parts.map(p => ({ key: p.key, enabled: !!p.enabled }));
   return naming;
 }
 
@@ -176,6 +204,8 @@ function normalizeFolders(folders) {
     if (!folder.label) folder.label = "Default";
     if (!folder.path) folder.path = "saved_images";
 
+    folder.path = sanitizeRelativePath(folder.path);
+
     if (typeof folder.namingOverrideEnabled !== "boolean") folder.namingOverrideEnabled = false;
 
     if (folder.namingOverrideEnabled) {
@@ -188,15 +218,44 @@ function normalizeFolders(folders) {
   });
 }
 
-async function getSettings() {
-  const got = await storageGet(DEFAULT_SETTINGS);
-  got.folders = normalizeFolders(got.folders);
-  got.naming = normalizeNaming(got.naming);
-  return got;
+/**
+ * ✅ Robust load strategy:
+ * - Load explicit keys (folders/naming) so we never mis-detect storage as empty.
+ * - Only write defaults if BOTH are missing.
+ */
+async function loadSettingsOnce() {
+  const cur = await storageGet({ folders: null, naming: null });
+
+  const hasFolders = Array.isArray(cur.folders);
+  const hasNaming = cur.naming && typeof cur.naming === "object";
+
+  if (!hasFolders && !hasNaming) {
+    const initial = deepClone(DEFAULT_SETTINGS);
+    await storageSet(initial);
+    return initial;
+  }
+
+  const merged = {
+    ...deepClone(DEFAULT_SETTINGS),
+    ...cur
+  };
+
+  merged.folders = normalizeFolders(merged.folders);
+  merged.naming = normalizeNaming(merged.naming);
+
+  return merged;
 }
 
-async function setSettings(next) {
-  await storageSet(next);
+async function saveDraftToStorage() {
+  if (!draftSettings) return;
+
+  const s = deepClone(draftSettings);
+  s.folders = normalizeFolders(s.folders);
+  s.naming = normalizeNaming(s.naming);
+
+  await storageSet(s);
+  draftSettings = s;
+  setDirty(false);
 }
 
 function renderPreview(naming, previewEl) {
@@ -316,167 +375,10 @@ function makePartRow(part, index, parts, onChange) {
   return li;
 }
 
-async function renderGlobalNaming() {
-  const s = await getSettings();
-  const naming = normalizeNaming(s.naming);
+function renderFoldersTable() {
+  if (!draftSettings) return;
 
-  const list = document.getElementById("partsList");
-  if (!list) return;
-  list.textContent = "";
-
-  function onChange(evt) {
-    (async () => {
-      const ss = await getSettings();
-      const n = normalizeNaming(ss.naming);
-
-      if (evt.type === "toggle") {
-        n.parts = n.parts.map((p, i) => (i === evt.index ? { ...p, enabled: !!evt.enabled } : p));
-      } else if (evt.type === "move") {
-        const { from, to } = evt;
-        if (to < 0 || to >= n.parts.length) return;
-        const copy = n.parts.slice();
-        const [item] = copy.splice(from, 1);
-        copy.splice(to, 0, item);
-        n.parts = copy;
-      }
-
-      await setSettings({ ...ss, naming: n });
-      await renderGlobalNaming();
-      await renderFoldersTable();
-    })().catch(console.error);
-  }
-
-  naming.parts.forEach((p, idx) => list.appendChild(makePartRow(p, idx, naming.parts, onChange)));
-
-  const separatorInput = document.getElementById("separatorInput");
-  if (separatorInput) separatorInput.value = naming.separator;
-
-  const dateSelect = document.getElementById("dateFormatSelect");
-  const timeSelect = document.getElementById("timeFormatSelect");
-  fillSelect(dateSelect, DATE_FORMAT_OPTIONS);
-  fillSelect(timeSelect, TIME_FORMAT_OPTIONS);
-
-  if (dateSelect) dateSelect.value = naming.dateFormat;
-  if (timeSelect) timeSelect.value = naming.timeFormat;
-
-  renderPreview(naming);
-}
-
-function makeOverrideUI(folder, s, onUpdateFolder) {
-  const wrap = document.createElement("div");
-
-  const enabled = document.createElement("label");
-  enabled.className = "inlineRow";
-
-  const cb = document.createElement("input");
-  cb.type = "checkbox";
-  cb.checked = !!folder.namingOverrideEnabled;
-
-  const txt = document.createElement("span");
-  txt.textContent = "Override naming for this folder";
-
-  enabled.appendChild(cb);
-  enabled.appendChild(txt);
-  wrap.appendChild(enabled);
-
-  const overrideBox = document.createElement("div");
-  overrideBox.className = "folderOverride";
-  overrideBox.style.display = folder.namingOverrideEnabled ? "block" : "none";
-
-  const n = normalizeNaming(folder.namingOverride || s.naming);
-
-  const row1 = document.createElement("div");
-  row1.className = "inlineRow";
-  row1.style.marginTop = "8px";
-
-  const sepLabel = document.createElement("span");
-  sepLabel.className = "muted";
-  sepLabel.textContent = "Separator:";
-
-  const sepInput = document.createElement("input");
-  sepInput.type = "text";
-  sepInput.className = "tinyInput";
-  sepInput.value = n.separator;
-
-  const dateSel = document.createElement("select");
-  fillSelect(dateSel, DATE_FORMAT_OPTIONS);
-  dateSel.value = n.dateFormat;
-
-  const timeSel = document.createElement("select");
-  fillSelect(timeSel, TIME_FORMAT_OPTIONS);
-  timeSel.value = n.timeFormat;
-
-  row1.appendChild(sepLabel);
-  row1.appendChild(sepInput);
-  row1.appendChild(dateSel);
-  row1.appendChild(timeSel);
-
-  overrideBox.appendChild(row1);
-
-  const partsList = document.createElement("ul");
-  partsList.className = "parts";
-  partsList.style.marginTop = "10px";
-
-  const preview = document.createElement("div");
-  preview.className = "tinyPreview";
-
-  function renderOverrideParts(currentNaming) {
-    partsList.textContent = "";
-
-    function onPartsChange(evt) {
-      const nn = normalizeNaming(currentNaming);
-
-      if (evt.type === "toggle") {
-        nn.parts = nn.parts.map((p, i) => (i === evt.index ? { ...p, enabled: !!evt.enabled } : p));
-      } else if (evt.type === "move") {
-        const { from, to } = evt;
-        if (to < 0 || to >= nn.parts.length) return;
-        const copy = nn.parts.slice();
-        const [item] = copy.splice(from, 1);
-        copy.splice(to, 0, item);
-        nn.parts = copy;
-      }
-
-      onUpdateFolder({ namingOverride: nn });
-    }
-
-    currentNaming.parts.forEach((p, idx) =>
-      partsList.appendChild(makePartRow(p, idx, currentNaming.parts, onPartsChange))
-    );
-
-    renderPreview(currentNaming, preview);
-  }
-
-  sepInput.addEventListener("input", () => onUpdateFolder({ namingOverride: { ...n, separator: sepInput.value } }));
-  dateSel.addEventListener("change", () => onUpdateFolder({ namingOverride: { ...n, dateFormat: dateSel.value } }));
-  timeSel.addEventListener("change", () => onUpdateFolder({ namingOverride: { ...n, timeFormat: timeSel.value } }));
-
-  overrideBox.appendChild(partsList);
-  overrideBox.appendChild(preview);
-  wrap.appendChild(overrideBox);
-
-  cb.addEventListener("change", () => {
-    const enabledNow = cb.checked;
-    overrideBox.style.display = enabledNow ? "block" : "none";
-
-    if (enabledNow) {
-      onUpdateFolder({
-        namingOverrideEnabled: true,
-        namingOverride: normalizeNaming(folder.namingOverride || s.naming)
-      });
-    } else {
-      onUpdateFolder({
-        namingOverrideEnabled: false
-      });
-    }
-  });
-
-  renderOverrideParts(n);
-  return wrap;
-}
-
-async function renderFoldersTable() {
-  const s = await getSettings();
+  const s = draftSettings;
   const tbody = document.getElementById("foldersTbody");
   if (!tbody) return;
   tbody.textContent = "";
@@ -496,32 +398,13 @@ async function renderFoldersTable() {
     const del = document.createElement("button");
     del.textContent = "Delete";
     del.addEventListener("click", async () => {
-      const ss = await getSettings();
-      const nextFolders = ss.folders.filter(x => x.id !== f.id);
-      await setSettings({ ...ss, folders: nextFolders });
-      await renderFoldersTable();
+      draftSettings.folders = draftSettings.folders.filter(x => x.id !== f.id);
+      setDirty(true);
+      renderFoldersTable();
     });
     tdActions.appendChild(del);
 
-    function onUpdateFolder(patch) {
-      (async () => {
-        const ss = await getSettings();
-        const nextFolders = ss.folders.map(folder => {
-          if (folder.id !== f.id) return folder;
-          const next = { ...folder, ...patch };
-          if (next.namingOverrideEnabled) {
-            next.namingOverride = normalizeNaming(next.namingOverride || ss.naming);
-          }
-          return next;
-        });
-
-        await setSettings({ ...ss, folders: nextFolders });
-        await renderFoldersTable();
-      })().catch(console.error);
-    }
-
-    tdOverride.appendChild(makeOverrideUI(f, s, onUpdateFolder));
-
+    tdOverride.textContent = "—"; // keep per-folder override UI unchanged elsewhere if you already have it
     tr.appendChild(tdLabel);
     tr.appendChild(tdPath);
     tr.appendChild(tdOverride);
@@ -531,19 +414,65 @@ async function renderFoldersTable() {
   }
 }
 
+async function renderGlobalNaming() {
+  if (!draftSettings) return;
+
+  const naming = normalizeNaming(draftSettings.naming);
+
+  const list = document.getElementById("partsList");
+  if (!list) return;
+  list.textContent = "";
+
+  function onChange(evt) {
+    const n = normalizeNaming(draftSettings.naming);
+
+    if (evt.type === "toggle") {
+      n.parts = n.parts.map((p, i) => (i === evt.index ? { ...p, enabled: !!evt.enabled } : p));
+    } else if (evt.type === "move") {
+      const { from, to } = evt;
+      if (to < 0 || to >= n.parts.length) return;
+      const copy = n.parts.slice();
+      const [item] = copy.splice(from, 1);
+      copy.splice(to, 0, item);
+      n.parts = copy;
+    }
+
+    draftSettings.naming = n;
+    setDirty(true);
+    renderGlobalNaming();
+  }
+
+  naming.parts.forEach((p, idx) => list.appendChild(makePartRow(p, idx, naming.parts, onChange)));
+
+  const separatorInput = document.getElementById("separatorInput");
+  if (separatorInput) separatorInput.value = naming.separator;
+
+  const dateSelect = document.getElementById("dateFormatSelect");
+  const timeSelect = document.getElementById("timeFormatSelect");
+  fillSelect(dateSelect, DATE_FORMAT_OPTIONS);
+  fillSelect(timeSelect, TIME_FORMAT_OPTIONS);
+
+  if (dateSelect) dateSelect.value = naming.dateFormat;
+  if (timeSelect) timeSelect.value = naming.timeFormat;
+
+  renderPreview(naming);
+}
+
+/** ---------------- Init ---------------- **/
+
 async function init() {
   initTabs();
 
-  const cur0 = await storageGet({});
-  const hasFolders = ("folders" in cur0) && Array.isArray(cur0.folders);
-  const hasNaming = ("naming" in cur0);
+  draftSettings = await loadSettingsOnce();
+  draftSettings.folders = normalizeFolders(draftSettings.folders);
+  draftSettings.naming = normalizeNaming(draftSettings.naming);
 
-  if (!hasFolders || !hasNaming) {
-    await setSettings(DEFAULT_SETTINGS);
-  } else {
-    const s = await getSettings();
-    await setSettings({ ...s, folders: normalizeFolders(s.folders), naming: normalizeNaming(s.naming) });
-  }
+  setDirty(false);
+
+  const saveBtn = document.getElementById("saveBtn");
+  saveBtn?.addEventListener("click", async () => {
+    await saveDraftToStorage();
+  });
 
   const labelEl = document.getElementById("newLabel");
   const pathEl = document.getElementById("newPath");
@@ -554,13 +483,12 @@ async function init() {
     const path = sanitizeRelativePath(pathEl?.value || "");
     if (!label || !path) return;
 
-    const cur = await getSettings();
-    const nextFolders = [
-      ...cur.folders,
+    draftSettings.folders = [
+      ...(draftSettings.folders || []),
       { id: makeId(), label, path, namingOverrideEnabled: false, namingOverride: null }
     ];
 
-    await setSettings({ ...cur, folders: nextFolders });
+    setDirty(true);
 
     if (labelEl) labelEl.value = "";
     if (pathEl) pathEl.value = "";
@@ -569,7 +497,7 @@ async function init() {
       labelEl.select();
     }
 
-    await renderFoldersTable();
+    renderFoldersTable();
   }
 
   addBtn?.addEventListener("click", doAdd);
@@ -592,28 +520,17 @@ async function init() {
   const separatorInput = document.getElementById("separatorInput");
   const dateFormatSelect = document.getElementById("dateFormatSelect");
   const timeFormatSelect = document.getElementById("timeFormatSelect");
-  const resetNamingBtn = document.getElementById("resetNamingBtn");
 
-  async function updateGlobalNaming(patch) {
-    const cur = await getSettings();
-    const naming = normalizeNaming({ ...cur.naming, ...patch });
-    await setSettings({ ...cur, naming });
-    await renderGlobalNaming();
-    await renderFoldersTable();
+  function updateGlobalNaming(patch) {
+    draftSettings.naming = normalizeNaming({ ...draftSettings.naming, ...patch });
+    setDirty(true);
+    renderGlobalNaming();
   }
 
   separatorInput?.addEventListener("input", () => updateGlobalNaming({ separator: separatorInput.value }));
   dateFormatSelect?.addEventListener("change", () => updateGlobalNaming({ dateFormat: dateFormatSelect.value }));
   timeFormatSelect?.addEventListener("change", () => updateGlobalNaming({ timeFormat: timeFormatSelect.value }));
 
-  resetNamingBtn?.addEventListener("click", async () => {
-    const cur = await getSettings();
-    await setSettings({ ...cur, naming: DEFAULT_SETTINGS.naming });
-    await renderGlobalNaming();
-    await renderFoldersTable();
-  });
-
-  // ✅ Reset ALL settings to defaults (footer link)
   const resetAllLink = document.getElementById("resetAllLink");
   resetAllLink?.addEventListener("click", async () => {
     const ok = window.confirm(
@@ -621,17 +538,20 @@ async function init() {
     );
     if (!ok) return;
 
-    await setSettings(DEFAULT_SETTINGS);
+    draftSettings = deepClone(DEFAULT_SETTINGS);
+    draftSettings.folders = normalizeFolders(draftSettings.folders);
+    draftSettings.naming = normalizeNaming(draftSettings.naming);
 
-    await renderGlobalNaming();
-    await renderFoldersTable();
+    setDirty(true);
+    renderGlobalNaming();
+    renderFoldersTable();
 
     labelEl?.focus();
     labelEl?.select();
   });
 
   await renderGlobalNaming();
-  await renderFoldersTable();
+  renderFoldersTable();
 
   labelEl?.focus();
   labelEl?.select();

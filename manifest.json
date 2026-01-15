@@ -1,12 +1,13 @@
 {
   "manifest_version": 2,
   "name": "Save image to...",
-  "version": "1.0.1",
-  "description": "Right-click an image and save it into custom folders with smart naming rules.",
+  "version": "1.0.2",
+  "description": "A tiny tool that turns “Save Image As…” into a fast workflow.",
   "permissions": [
     "contextMenus",
     "downloads",
     "storage",
+    "activeTab",
     "<all_urls>"
   ],
   "background": {
@@ -20,17 +21,16 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "run_at": "document_idle",
+      "run_at": "document_start",
       "all_frames": true
     }
   ],
   "browser_specific_settings": {
     "gecko": {
       "id": "save-image-to@metasamsara",
-      "data_collection_permissions": {
-        "required": ["none"]
-      }
+      "strict_min_version": "109.0"
     }
-  }
+  },
+  "data_collection_permissions": {}
 }
 

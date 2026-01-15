@@ -224,6 +224,51 @@
       user-select: none;
     }
     .footerLink:hover { color: #222; }
+
+    /* Save bar */
+    .saveBar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: flex-end;
+      margin: 12px 0 12px 0;
+      flex-wrap: wrap;
+    }
+    .saveBtn {
+      background: #0b0b0b;
+      color: #fff;
+      border: 1px solid #0b0b0b;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-weight: 700;
+    }
+    .saveBtn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .dirtyPill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #ddd;
+      background: #fafafa;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #333;
+    }
+    .dirtyDot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #d10000;
+    }
+    .savedDot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #0a7a00;
+    }
   </style>
 </head>
 <body>
@@ -247,6 +292,18 @@
       Firefox extensions can only save into subfolders under your default Downloads directory.
       Use paths like <code>saved_images</code> or <code>Images/Art</code>.
     </p>
+
+    <!-- Manual Save UI -->
+    <div class="saveBar">
+      <span id="dirtyState" class="dirtyPill" title="Changes are not saved until you click Save changes">
+        <span id="dirtyDot" class="dirtyDot"></span>
+        <span id="dirtyText">Unsaved changes</span>
+      </span>
+
+      <button id="saveBtn" class="saveBtn" type="button" disabled>
+        Save changes
+      </button>
+    </div>
 
     <h2>Global file naming</h2>
 
